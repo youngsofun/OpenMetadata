@@ -11,7 +11,13 @@
  *  limitations under the License.
  */
 
-import { APIRequestContext, Browser, expect, Page } from '@playwright/test';
+import {
+  APIRequestContext,
+  Browser,
+  expect,
+  Locator,
+  Page,
+} from '@playwright/test';
 import { SidebarItem } from '../constant/sidebar';
 import { Glossary } from '../support/glossary/Glossary';
 import { GlossaryTerm } from '../support/glossary/GlossaryTerm';
@@ -167,36 +173,50 @@ export interface RenderedEdge {
   inverseRelationType?: string;
 }
 
+/**
+ * The edges a rendered graph publishes on its container, once at least
+ * `minCount` of them are there.
+ *
+ * `scope` says *which* graph. Query mode keeps the editor graph mounted behind
+ * the SPARQL result subgraph, so two `.ontology-g6-container` elements are on
+ * screen at once and an unscoped read is wrong twice over: the DOM query it
+ * waits on takes the first match (the editor graph, not the result), and the
+ * read that follows is a strict-mode violation. Pass the panel that owns the
+ * graph you mean — `page.getByTestId('ontology-sparql-result-graph')` for the
+ * result subgraph. A page-wide scope is still right for the editor-only views,
+ * where exactly one container exists.
+ */
 export async function readGraphEdges(
-  page: Page,
+  scope: Page | Locator,
   minCount = 1
 ): Promise<RenderedEdge[]> {
-  await page.waitForFunction(
-    (min) => {
-      const el = document.querySelector<HTMLElement>('.ontology-g6-container');
-      const raw = el?.dataset.edges;
-      if (typeof raw !== 'string') {
-        return false;
-      }
-      try {
-        const count = (JSON.parse(raw) as unknown[]).length;
+  const container = scope.locator('.ontology-g6-container');
 
-        return min === 0 ? true : count >= min;
-      } catch {
-        return false;
-      }
-    },
-    minCount,
-    { timeout: 20000 }
+  await expect
+    .poll(async () => parseEdges(await container.getAttribute('data-edges')), {
+      timeout: 20000,
+      message: `Graph never published ${minCount} edge(s) on data-edges`,
+    })
+    .toBeGreaterThanOrEqual(minCount);
+
+  return container.evaluate(
+    (el: HTMLElement) => JSON.parse(el.dataset.edges ?? '[]') as RenderedEdge[]
   );
-
-  return page
-    .locator('.ontology-g6-container')
-    .evaluate(
-      (el: HTMLElement) =>
-        JSON.parse(el.dataset.edges ?? '[]') as RenderedEdge[]
-    );
 }
+
+// -1 rather than 0 so a container that has not published `data-edges` yet is
+// distinguishable from one that published an empty list — `minCount = 0` means
+// "any list, including empty", and must not be satisfied by a missing attribute.
+const parseEdges = (raw: string | null): number => {
+  if (raw === null) {
+    return -1;
+  }
+  try {
+    return (JSON.parse(raw) as unknown[]).length;
+  } catch {
+    return -1;
+  }
+};
 
 export async function readSearchHighlightIds(page: Page): Promise<string[]> {
   await page.waitForFunction(

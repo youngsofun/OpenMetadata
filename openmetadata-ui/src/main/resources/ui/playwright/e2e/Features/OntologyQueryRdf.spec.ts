@@ -292,11 +292,10 @@ test.describe('Ontology scoped query mode', { tag: ['@ontology-rdf'] }, () => {
       await page.getByTestId('ontology-sparql-run').click();
       expect((await responsePromise).ok()).toBe(true);
       await page.getByRole('tab', { name: 'Graph' }).click();
-      await expect(
-        page.getByTestId('ontology-sparql-result-graph')
-      ).toBeVisible();
+      const resultGraph = page.getByTestId('ontology-sparql-result-graph');
+      await expect(resultGraph).toBeVisible();
 
-      const edges = await readGraphEdges(page);
+      const edges = await readGraphEdges(resultGraph);
       expect(edges).toContainEqual(
         expect.objectContaining({
           from: sourceIri,

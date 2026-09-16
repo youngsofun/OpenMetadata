@@ -605,9 +605,14 @@ test.describe(
           viewBasicPage.getByTestId('entity-page-header')
         ).toBeVisible();
 
+        // The details page prints the test definition twice — once truncated in
+        // the page header, once in the configuration card. An unscoped text
+        // match therefore passes only while the card is still rendering and
+        // fails as a strict-mode violation the moment it arrives. The card is
+        // the "content" this test is about, so name it.
         await expect(
-          viewBasicPage.getByText(/Table Row Count To Be Between/i)
-        ).toBeVisible();
+          viewBasicPage.getByTestId('configuration-test-name')
+        ).toHaveText(/Table Row Count To Be Between/i);
       });
     });
 
